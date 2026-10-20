@@ -46,7 +46,7 @@ sudo apt install build-essential cmake pkg-config libapr1-dev libpcl-dev \
 ```bash
 mkdir -p ~/ws_livox/src
 
-git clone https://github.com/xhy-yyy/livox_ros_driver2.git \
+git clone https://github.com/xhy-yyy/ws_livox_ros_driver2.git \
   ~/ws_livox/src/livox_ros_driver2
 
 git clone https://github.com/Livox-SDK/Livox-SDK2.git \
@@ -145,7 +145,7 @@ ros2 topic hz /livox/lidar
 
 ## Point-LIO 接入
 
-配套定位建图工程：[Point-LIO_ROS2](https://github.com/xhy-yyy/Point-LIO_ROS2)。
+配套定位建图工程：[Point-LIO_ROS2](https://github.com/xhy-yyy/ws_Point-LIO_ROS2)。
 
 使用该工程时，保持驱动输出为 `CustomMsg`，并将 Point-LIO 的点云、IMU 输入分别配置为 `/livox/lidar` 和 `/livox/imu`。雷达驱动与定位节点分别启动，定位参数和外参配置见配套工程说明。
 
