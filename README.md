@@ -103,13 +103,27 @@ BUILD_JOBS=4 bash ~/ws_livox/src/livox_ros_driver2/scripts/build_humble.sh
 
 ## 启动与数据接口
 
-### 启动驱动
+### 1. 启动雷达驱动（终端 1）
+
+完成构建和网络配置后，先启动 MID360 驱动。以下命令以 `~/ws_livox` 和 `~/ws_mid360` 为工作区路径；使用其他目录时，请替换为实际路径。
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/ws_livox/install/setup.bash
+export LD_LIBRARY_PATH="$HOME/ws_livox/.deps/livox_sdk2/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+ros2 launch livox_ros_driver2 msg_MID360_launch.py
+```
+
+`LD_LIBRARY_PATH` 用于加载本工程安装的 SDK2 动态库。使用自定义 `LIVOX_SDK2_PREFIX` 时，将上述 SDK 路径替换为该目录下的 `lib`。
+
+也可使用脚本完成相同的环境加载和启动：
 
 ```bash
 bash ~/ws_livox/src/livox_ros_driver2/scripts/run_mid360.sh
 ```
 
-启动脚本自动加载 ROS、驱动工作区和 SDK 动态库路径，并运行 `msg_MID360_launch.py`。
+启动后保持此终端运行，驱动持续发布点云与 IMU 数据。
 
 ### 默认发布话题
 
@@ -148,6 +162,27 @@ ros2 topic hz /livox/lidar
 配套定位建图工程：[Point-LIO_ROS2](https://github.com/xhy-yyy/ws_Point-LIO_ROS2)。
 
 使用该工程时，保持驱动输出为 `CustomMsg`，并将 Point-LIO 的点云、IMU 输入分别配置为 `/livox/lidar` 和 `/livox/imu`。雷达驱动与定位节点分别启动，定位参数和外参配置见配套工程说明。
+
+### 2. 启动 Point-LIO（终端 2）
+
+完成配套工程构建，并确认驱动已发布点云和 IMU 数据后，在另一个终端执行：
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/ws_livox/install/setup.bash
+source ~/ws_mid360/install/setup.bash
+export LD_LIBRARY_PATH="$HOME/ws_livox/.deps/livox_sdk2/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+ros2 launch point_lio mapping_mid360.launch.py
+```
+
+每个终端需分别加载环境。若已在终端中配置好上述环境，可直接依次运行两条 `ros2 launch` 命令。
+
+Point-LIO 默认关闭 RViz；如需显示建图结果，将其启动命令替换为：
+
+```bash
+ros2 launch point_lio mapping_mid360.launch.py rviz:=true
+```
 
 ## 常见问题
 
