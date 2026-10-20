@@ -1,24 +1,36 @@
-# livox_ros_driver2 — 单 MID360 ROS2 驱动工程
+# Livox MID360 ROS 2 Driver
 
-由 [xhy-yyy](https://github.com/xhy-yyy) 维护的单台 Livox MID360 驱动工程，面向
-Ubuntu 22.04 / ROS2 Humble，提供实际网络配置、20 Hz 自定义点云输出，以及构建和启动脚本。
+面向单台 Livox MID360 的 ROS 2 驱动工程，提供点云与 IMU 数据接入、设备网络配置，以及构建和启动脚本，可用于激光惯性里程计、定位建图等应用的数据采集。
 
-本项目基于 Livox 官方驱动进行配置与工程整理。来源和版本见 [CREDITS.md](CREDITS.md)，
-原版说明见 [README_UPSTREAM.md](README_UPSTREAM.md)。
+本项目由 [xhy-yyy](https://github.com/xhy-yyy) 维护，基于 Livox ROS Driver 2 进行配置适配与工程整理，默认面向 **Ubuntu 22.04 / ROS 2 Humble**。上游来源与版本记录见 [CREDITS.md](CREDITS.md) 和 [SOURCE_VERSION.json](SOURCE_VERSION.json)。
 
-## 本工程提供的内容
+## 功能特性
 
-- 默认雷达 IP `192.168.1.100`，接收主机 IP `192.168.1.50`。
-- 默认以 20 Hz 输出 Livox `CustomMsg`，配套 Point-LIO 使用。
-- SDK2 在工作区本地构建、安装，提供固定 SDK 版本和依赖搜索路径。
-- 提供 ROS2 Humble 构建、启动脚本及配置说明。
+- 支持单台 MID360 的点云与内置 IMU 数据发布。
+- 默认以 **20 Hz** 发布 Livox `CustomMsg` 点云，保留逐点时间信息，便于接入 Point-LIO 等处理节点。
+- 采用固定版本的 Livox SDK2，提供工作区本地构建与安装流程。
+- 提供统一的构建、启动入口及网络、话题和参数说明。
 
-ROS 包名为 `livox_ros_driver2`，输出话题为 `/livox/lidar` 和 `/livox/imu`，
-默认坐标系为 `livox_frame`。
+本文覆盖单 MID360 的配置与使用流程。仓库保留的 HAP 和多雷达配置示例需按实际设备单独配置。
 
-## 准备环境和构建
+## 环境要求
 
-先安装 ROS2 Humble，再安装系统依赖：
+| 项目 | 配置 |
+| --- | --- |
+| 操作系统 | Ubuntu 22.04 |
+| ROS 版本 | ROS 2 Humble |
+| 雷达型号 | Livox MID360，单设备 |
+| SDK | Livox SDK2 1.2.5，固定提交见下文 |
+| 构建工具 | CMake、colcon |
+| ROS 包名 | `livox_ros_driver2` |
+
+SDK2 与驱动已在 x86_64 / ROS 2 Humble 环境完成编译验证，尚未进行雷达实机测试。
+
+## 安装与构建
+
+### 1. 安装依赖
+
+安装 ROS 2 Humble 后，执行以下命令安装构建依赖：
 
 ```bash
 sudo apt update
@@ -27,45 +39,135 @@ sudo apt install build-essential cmake pkg-config libapr1-dev libpcl-dev \
   ros-humble-pcl-conversions ros-humble-rosbag2
 ```
 
-在未加载其他同名工作区的终端中，将仓库放到 `src/` 下，并准备官方 SDK2：
+### 2. 获取源码
+
+驱动源码应位于 ROS 工作区的 `src/` 目录。以下命令以 `~/ws_livox` 为工作区：
 
 ```bash
 mkdir -p ~/ws_livox/src
-git clone https://github.com/xhy-yyy/livox_ros_driver2.git ~/ws_livox/src/livox_ros_driver2
-git clone https://github.com/Livox-SDK/Livox-SDK2.git ~/ws_livox/src/Livox-SDK2
-git -C ~/ws_livox/src/Livox-SDK2 checkout 6a940156dd7151c3ab6a52442d86bc83613bd11b
+
+git clone https://github.com/xhy-yyy/livox_ros_driver2.git \
+  ~/ws_livox/src/livox_ros_driver2
+
+git clone https://github.com/Livox-SDK/Livox-SDK2.git \
+  ~/ws_livox/src/Livox-SDK2
+
+git -C ~/ws_livox/src/Livox-SDK2 checkout \
+  6a940156dd7151c3ab6a52442d86bc83613bd11b
+```
+
+固定 SDK2 提交用于保持依赖版本一致，建议首次构建时采用上述版本。
+
+### 3. 构建工程
+
+在未加载其他同名工作区的终端中执行：
+
+```bash
 bash ~/ws_livox/src/livox_ros_driver2/scripts/build_humble.sh
 ```
 
-SDK 安装到 `ws_livox/.deps/livox_sdk2`。可用 `LIVOX_SDK2_SOURCE`、`LIVOX_SDK2_PREFIX`、
-`ROS_SETUP_FILE` 指定路径，用 `BUILD_JOBS` 指定并行数。新脚本保留已有构建目录。
+脚本依次构建 SDK2、将其安装至 `ws_livox/.deps/livox_sdk2`，并生成 ROS 2 包清单、构建驱动。SDK 安装无需写入系统目录。
 
-## 配置和运行
+可通过环境变量调整构建配置：
 
-为连接雷达的网口配置与 JSON 一致的接收地址，并核对雷达实际 IP。
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `ROS_SETUP_FILE` | `/opt/ros/humble/setup.bash` | ROS 环境脚本 |
+| `LIVOX_SDK2_SOURCE` | `<工作区>/src/Livox-SDK2` | SDK2 源码目录 |
+| `LIVOX_SDK2_PREFIX` | `<工作区>/.deps/livox_sdk2` | SDK2 安装目录 |
+| `BUILD_JOBS` | `2` | 构建并行数 |
 
-| 配置 | 文件 |
+例如，调整构建并行数：
+
+```bash
+BUILD_JOBS=4 bash ~/ws_livox/src/livox_ros_driver2/scripts/build_humble.sh
+```
+
+使用自定义 SDK 安装目录时，构建和启动应设置相同的 `LIVOX_SDK2_PREFIX`。
+
+## 网络配置
+
+默认网络参数位于 [MID360_config.json](config/MID360_config.json)：
+
+| 设备 | 默认 IP 地址 |
 | --- | --- |
-| 雷达和主机地址 | `config/MID360_config.json` |
-| 点云格式和发布频率 | `launch_ROS2/msg_MID360_launch.py` |
+| MID360 雷达 | `192.168.1.100` |
+| 接收主机网口 | `192.168.1.50` |
+
+将雷达连接至主机网口，并为该网口配置与雷达处于同一子网的静态地址。配置文件中的主机地址应与网口的实际地址一致。
+
+- 雷达地址：修改 `lidar_configs` 中对应设备的 `ip`。
+- 主机地址：修改 `MID360.host_net_info` 下的 `cmd_data_ip`、`push_msg_ip`、`point_data_ip` 和 `imu_data_ip`。
+
+如果雷达已使用其他地址，请按实际地址调整配置。修改配置文件后需重新构建，更新安装目录中的配置副本。
+
+## 启动与数据接口
+
+### 启动驱动
 
 ```bash
 bash ~/ws_livox/src/livox_ros_driver2/scripts/run_mid360.sh
 ```
 
-配套定位工程为 [Point-LIO_ROS2](https://github.com/xhy-yyy/Point-LIO_ROS2)。
-修改源码配置或启动文件后，重新构建以更新安装目录。
+启动脚本自动加载 ROS、驱动工作区和 SDK 动态库路径，并运行 `msg_MID360_launch.py`。
 
-HAP 和混合配置保留为历史示例，默认单 MID360 启动不读取它们。
-混合配置中两个雷达条目当前均为 `.100`，多雷达接入时需填写各设备实际地址。
+### 默认发布话题
 
-## 维护和验证
+| 话题 | 消息类型 | 说明 |
+| --- | --- | --- |
+| `/livox/lidar` | `livox_ros_driver2/msg/CustomMsg` | Livox 自定义点云，默认 20 Hz |
+| `/livox/imu` | `sensor_msgs/msg/Imu` | MID360 内置 IMU 数据 |
 
-维护分支为 `main`，本仓库从当前工程快照建立独立提交历史。
-今后引入上游更新时，按补丁审阅、合入并验证。
+默认消息坐标系为 `livox_frame`。`20 Hz` 为点云组帧与发布频率配置，IMU 数据按接收到的数据独立发布。
 
-本次整理前，相同的 SDK2、驱动源码和构建脚本已在 x86_64 / ROS2 Humble 环境编译通过。
-独立发布整理未修改算法源码；未连接雷达做实机测试。
-首次发布需将本项目推送到上述个人仓库后，克隆地址才可用于获取此版本。
+在另一个终端加载环境后，可检查话题类型和点云接收频率：
 
-许可证和第三方声明保留在 `LICENSE.txt` 及第三方目录中。
+```bash
+source /opt/ros/humble/setup.bash
+source ~/ws_livox/install/setup.bash
+
+ros2 topic info /livox/lidar
+ros2 topic hz /livox/lidar
+```
+
+### 发布参数
+
+默认启动参数位于 [msg_MID360_launch.py](launch_ROS2/msg_MID360_launch.py)：
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `xfer_format` | `1` | 发布 Livox `CustomMsg` 点云 |
+| `multi_topic` | `0` | 使用共享点云和 IMU 话题 |
+| `publish_freq` | `20.0` | 点云发布频率，单位 Hz |
+| `frame_id` | `livox_frame` | 点云消息坐标系 |
+
+上述参数对应本项目默认启动文件，其他启动文件使用各自的参数。修改启动文件后需重新构建。
+
+## Point-LIO 接入
+
+配套定位建图工程：[Point-LIO_ROS2](https://github.com/xhy-yyy/Point-LIO_ROS2)。
+
+使用该工程时，保持驱动输出为 `CustomMsg`，并将 Point-LIO 的点云、IMU 输入分别配置为 `/livox/lidar` 和 `/livox/imu`。雷达驱动与定位节点分别启动，定位参数和外参配置见配套工程说明。
+
+## 常见问题
+
+**启动后没有点云或 IMU 数据**
+
+核对雷达实际 IP、主机网口地址及 JSON 中的接收地址，确认使用的是单 MID360 配置，并检查是否存在其他驱动实例占用接收端口。
+
+**找不到 SDK 动态库**
+
+先完成 `build_humble.sh` 构建，再使用 `run_mid360.sh` 启动。若指定了 `LIVOX_SDK2_PREFIX`，启动时需使用同一安装目录。
+
+**修改配置后没有生效**
+
+运行时读取安装目录中的配置和启动文件。修改源码目录后重新执行构建脚本，再启动驱动。
+
+## 来源与许可证
+
+本项目基于 [Livox ROS Driver 2](https://github.com/Livox-SDK/livox_ros_driver2) 和 [Livox SDK2](https://github.com/Livox-SDK/Livox-SDK2) 进行工程适配，保留原有版权声明和第三方许可证。
+
+- [来源与维护记录](CREDITS.md)
+- [上游版本记录](SOURCE_VERSION.json)
+- [原版使用说明](README_UPSTREAM.md)
+- [许可证及第三方声明](LICENSE.txt)
