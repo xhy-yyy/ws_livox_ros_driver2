@@ -1,0 +1,9 @@
+{
+  "project": "livox_ros_driver2",
+  "source_url": "https://github.com/Livox-SDK/livox_ros_driver2.git",
+  "source_branch": "master",
+  "source_commit": "6b9356cadf77084619ba406e6a0eb41163b08039",
+  "prepared_snapshot_commit": "b2076c6c984c6a900573b93f153a0e5b3e3a77e7",
+  "history": "Independent repository initialized from the prepared source snapshot; upstream source notices and licenses retained.",
+  "excluded_editor_or_log_files": []
+}
